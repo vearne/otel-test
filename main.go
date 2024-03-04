@@ -15,10 +15,15 @@
 package main
 
 import (
+	"context"
 	zlog "github.com/vearne/otel-test/log"
 	"github.com/vearne/otel-test/myotel"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	pb "google.golang.org/grpc/examples/helloworld/helloworld"
 	"html/template"
 	"log"
 	"net/http"
@@ -126,6 +131,42 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{
 			"message": resp.String(),
 		})
+	})
+	r.GET("/sayHelloGrpc", func(c *gin.Context) {
+		ctx := c.Request.Context()
+
+		val, err := rdb.Incr(c.Request.Context(), "helloGrpcCounter").Result()
+		if err != nil {
+			zlog.ErrorContext(ctx, "test hello grpc", zap.Int64("val", val), zap.Error(err))
+		} else {
+			zlog.InfoContext(ctx, "test hello grpc", zap.Int64("val", val))
+		}
+
+		conn, err := grpc.Dial("localhost:50051",
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		)
+
+		if err != nil {
+			log.Fatalf("did not connect: %v", err)
+		}
+		defer conn.Close()
+		client := pb.NewGreeterClient(conn)
+
+		// Contact the server and print out its response.
+		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second)
+		defer cancel()
+		r, err := client.SayHello(ctx, &pb.HelloRequest{Name: "lily"})
+		if err != nil {
+			zlog.Error("could not greet", zap.Error(err))
+			c.JSON(http.StatusOK, gin.H{
+				"error": err.Error(),
+			})
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"message": r.GetMessage(),
+			})
+		}
 	})
 	_ = r.Run(":8080")
 }

@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
-	zlog "github.com/vearne/zaplog"
+	zlog "github.com/vearne/otel-test/log"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -15,6 +14,7 @@ import (
 	"sync/atomic"
 
 	_ "github.com/apache/skywalking-go"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip" // 会完成gzip Compressor的注册
@@ -44,8 +44,12 @@ func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloRe
 	for key, val := range md {
 		fmt.Printf("%v:%v\n", key, val)
 	}
-	val, err := rdb.Incr(context.Background(), "svc-sayHello-grpc").Result()
-	zlog.Info("test hello", zap.Int64("val", val), zap.Error(err))
+	val, err := rdb.Incr(ctx, "svc-sayHello-grpc").Result()
+	if err != nil {
+		zlog.ErrorContext(ctx, "test hello", zap.Int64("val", val), zap.Error(err))
+	} else {
+		zlog.InfoContext(ctx, "test hello", zap.Int64("val", val))
+	}
 
 	atomic.AddUint64(&counter, 1)
 	x := atomic.LoadUint64(&counter) % 3
@@ -64,24 +68,27 @@ func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloRe
 func main() {
 	zlog.InitLogger("/tmp/sayHelloGrpc.log", "debug")
 
-	// 添加Prometheus的相关监控
-	// /metrics
-	go func() {
-		//time.Sleep(3 * time.Minute)
-		r := gin.Default()
-		r.GET("/metrics", gin.WrapH(promhttp.Handler()))
-		r.Run(":9091")
-	}()
-
 	rdb = redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
+
+	// Enable tracing instrumentation.
+	if err := redisotel.InstrumentTracing(rdb); err != nil {
+		panic(err)
+	}
+
+	// Enable metrics instrumentation.
+	if err := redisotel.InstrumentMetrics(rdb); err != nil {
+		panic(err)
+	}
 
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	s := grpc.NewServer()
+	s := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	)
 	pb.RegisterGreeterServer(s, &server{})
 	// Register reflection service on gRPC server.
 	reflection.Register(s)

@@ -5,12 +5,12 @@ clean:
 	rm -rf $(COMMAND_NAME)
 
 .PHONY: build
-build:
-	go build -mod=vendor -toolexec="/var/tmp/skywalking-go-agent" -work -a -o $(COMMAND_NAME) .
+build: clean
+	go build -o $(COMMAND_NAME) .
 
 .PHONY: run
 run:
-	env SW_AGENT_NAME=$(COMMAND_NAME)  \
-		CONSUL_DISCOVER_DC_LIST=baoding \
-		SW_AGENT_REPORTER_GRPC_BACKEND_SERVICE=consul://consul-cache.online.qiyi.qae/skywalking-oap-server \
+	env OTEL_SERVICE_NAME=$(COMMAND_NAME) \
+        OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative \
+        OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
 		./$(COMMAND_NAME)
