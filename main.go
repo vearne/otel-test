@@ -16,7 +16,9 @@ package main
 
 import (
 	"context"
+	zlog "github.com/vearne/otel-test/log"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.uber.org/zap"
 	"html/template"
 	"log"
 	"net/http"
@@ -35,6 +37,8 @@ import (
 var tracer = otel.Tracer("gin-server")
 
 func main() {
+	zlog.InitLogger("/tmp/otel.log", "debug")
+
 	tp, err := initTracer()
 	if err != nil {
 		log.Fatal(err)
@@ -52,6 +56,9 @@ func main() {
 	r.SetHTMLTemplate(tmpl)
 	r.GET("/users/:id", func(c *gin.Context) {
 		id := c.Param("id")
+
+		zlog.InfoContext(c.Request.Context(), "userID", zap.String("id", id))
+
 		name := getUser(c, id)
 		otelgin.HTML(c, http.StatusOK, tmplName, gin.H{
 			"name": name,
