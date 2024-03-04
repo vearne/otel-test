@@ -17,15 +17,18 @@ package main
 import (
 	"context"
 	zlog "github.com/vearne/otel-test/log"
+	"github.com/vearne/otel-test/myotel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.uber.org/zap"
 	"html/template"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	//stdout "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -34,20 +37,43 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-var tracer = otel.Tracer("gin-server")
+var tracer = otel.Tracer("otel-test")
+
+func init() {
+	//tp := myotel.InitTracerProvider()
+	//defer func() {
+	//	if err := tp.Shutdown(context.Background()); err != nil {
+	//		log.Printf("Error shutting down tracer provider: %v", err)
+	//	}
+	//}()
+	//
+	//mp := myotel.InitMeterProvider()
+	//defer func() {
+	//	if err := mp.Shutdown(context.Background()); err != nil {
+	//		log.Printf("Error shutting down meter provider: %v", err)
+	//	}
+	//}()
+
+	myotel.InitTracerProvider()
+	myotel.InitMeterProvider()
+	err := runtime.Start(runtime.WithMinimumReadMemStatsInterval(time.Second))
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 func main() {
 	zlog.InitLogger("/tmp/otel.log", "debug")
 
-	tp, err := initTracer()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func() {
-		if err := tp.Shutdown(context.Background()); err != nil {
-			log.Printf("Error shutting down tracer provider: %v", err)
-		}
-	}()
+	//tp, err := initTracer()
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//defer func() {
+	//	if err := tp.Shutdown(context.Background()); err != nil {
+	//		log.Printf("Error shutting down tracer provider: %v", err)
+	//	}
+	//}()
 	r := gin.New()
 	r.Use(otelgin.Middleware("my-server"))
 	tmplName := "user"
