@@ -2,3 +2,4 @@
 vendor/
 otel-test
 micro_service/say_hello_http/sw-sayhello-http
+micro_service/say_hello_grpc/sw-sayhello-grpc
