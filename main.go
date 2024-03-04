@@ -15,10 +15,9 @@
 package main
 
 import (
-	"context"
 	zlog "github.com/vearne/otel-test/log"
 	"github.com/vearne/otel-test/myotel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"html/template"
 	"log"
@@ -26,34 +25,21 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-
+	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	//stdout "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/propagation"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	oteltrace "go.opentelemetry.io/otel/trace"
+	"github.com/go-resty/resty/v2"
+	"github.com/redis/go-redis/extra/redisotel/v9"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"golang.org/x/sync/errgroup"
 )
 
-var tracer = otel.Tracer("otel-test")
+var rdb *redis.Client
 
 func init() {
-	//tp := myotel.InitTracerProvider()
-	//defer func() {
-	//	if err := tp.Shutdown(context.Background()); err != nil {
-	//		log.Printf("Error shutting down tracer provider: %v", err)
-	//	}
-	//}()
-	//
-	//mp := myotel.InitMeterProvider()
-	//defer func() {
-	//	if err := mp.Shutdown(context.Background()); err != nil {
-	//		log.Printf("Error shutting down meter provider: %v", err)
-	//	}
-	//}()
-
 	myotel.InitTracerProvider()
 	myotel.InitMeterProvider()
 	err := runtime.Start(runtime.WithMinimumReadMemStatsInterval(time.Second))
@@ -64,16 +50,22 @@ func init() {
 
 func main() {
 	zlog.InitLogger("/tmp/otel.log", "debug")
+	// init redis
+	// 初始化Redis
+	rdb = redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
 
-	//tp, err := initTracer()
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//defer func() {
-	//	if err := tp.Shutdown(context.Background()); err != nil {
-	//		log.Printf("Error shutting down tracer provider: %v", err)
-	//	}
-	//}()
+	// Enable tracing instrumentation.
+	if err := redisotel.InstrumentTracing(rdb); err != nil {
+		panic(err)
+	}
+
+	// Enable metrics instrumentation.
+	if err := redisotel.InstrumentMetrics(rdb); err != nil {
+		panic(err)
+	}
+
 	r := gin.New()
 	r.Use(otelgin.Middleware("my-server"))
 	tmplName := "user"
@@ -91,28 +83,57 @@ func main() {
 			"id":   id,
 		})
 	})
+	r.GET("/ping", func(c *gin.Context) {
+		ctx := c.Request.Context()
+		g, _ := errgroup.WithContext(ctx)
+
+		g.Go(func() error {
+			val, err := rdb.Incr(ctx, "helloCounter2").Result()
+			if err != nil {
+				zlog.ErrorContext(ctx, "ping", zap.Int64("val", val), zap.Error(err))
+			} else {
+				zlog.InfoContext(ctx, "ping", zap.Int64("val", val))
+			}
+			return nil
+		})
+		g.Go(func() error {
+			hsetRes, err := rdb.HSet(ctx, "xyz", "def", 0).Result()
+			if err != nil {
+				zlog.ErrorContext(ctx, "ping", zap.Int64("setRes", hsetRes), zap.Error(err))
+			} else {
+				zlog.InfoContext(ctx, "ping", zap.Int64("setRes", hsetRes))
+			}
+			return nil
+		})
+		g.Wait()
+		c.JSON(http.StatusOK, gin.H{
+			"message": "pong",
+		})
+	})
+	r.GET("/sayHelloHttp", func(c *gin.Context) {
+		val, err := rdb.Incr(c, "helloHttpCounter").Result()
+		zlog.Info("test hello http", zap.Int64("val", val), zap.Error(err))
+		//req, err := http.NewRequest("GET", "http://localhost:18001/sayHello", nil)
+		//resp, err := http.DefaultClient.Do(req)
+		//dealErr(err)
+
+		client := resty.NewWithClient(&http.Client{
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		})
+		resp, err := client.R().
+			Get("http://localhost:18001/sayHello")
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": resp.String(),
+		})
+	})
 	_ = r.Run(":8080")
-}
-
-func initTracer() (*sdktrace.TracerProvider, error) {
-	ctx := context.Background()
-
-	exporter, err := otlptracegrpc.New(ctx)
-	if err != nil {
-		log.Fatalf("new otlp trace grpc exporter failed: %v", err)
-	}
-	tp := sdktrace.NewTracerProvider(
-		//sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithBatcher(exporter),
-	)
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	return tp, nil
 }
 
 func getUser(c *gin.Context, id string) string {
 	// Pass the built-in `context.Context` object from http.Request to OpenTelemetry APIs
 	// where required. It is available from gin.Context.Request.Context()
+	tracer := otel.Tracer("otel-test")
 	_, span := tracer.Start(c.Request.Context(), "getUser", oteltrace.WithAttributes(attribute.String("id", id)))
 	defer span.End()
 	if id == "123" {

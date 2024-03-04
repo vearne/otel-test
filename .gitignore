@@ -1,3 +1,4 @@
 .idea/
 vendor/
 otel-test
+micro_service/say_hello_http/sw-sayhello-http
