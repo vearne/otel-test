@@ -128,8 +128,8 @@ func main() {
 		client := resty.NewWithClient(&http.Client{
 			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		})
-		resp, err := client.R().
-			Get("http://localhost:18001/sayHello")
+
+		resp, err := client.R().SetContext(ctx).Get("http://localhost:18001/sayHello")
 
 		c.JSON(http.StatusOK, gin.H{
 			"message": resp.String(),
