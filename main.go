@@ -39,6 +39,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/baggage"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -124,10 +125,6 @@ func main() {
 			zlog.InfoContext(ctx, "test hello http", zap.Int64("val", val))
 		}
 
-		//req, err := http.NewRequest("GET", "http://localhost:18001/sayHello", nil)
-		//resp, err := http.DefaultClient.Do(req)
-		//dealErr(err)
-
 		client := resty.NewWithClient(&http.Client{
 			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		})
@@ -159,8 +156,18 @@ func main() {
 		defer conn.Close()
 		client := pb.NewGreeterClient(conn)
 
+		reqBaggage, err := baggage.New()
+		if err != nil {
+			zlog.ErrorContext(ctx, "use Baggage", zap.Error(err))
+		} else {
+			zlog.InfoContext(ctx, "use Baggage")
+			member, _ := baggage.NewMember("mykey", "myvalue")
+			reqBaggage, _ = reqBaggage.SetMember(member)
+		}
+
+		ctx = baggage.ContextWithBaggage(ctx, reqBaggage)
 		// Contact the server and print out its response.
-		ctx, cancel := context.WithTimeout(c.Request.Context(), time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		r, err := client.SayHello(ctx, &pb.HelloRequest{Name: "lily"})
 		if err != nil {
