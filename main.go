@@ -116,8 +116,14 @@ func main() {
 		})
 	})
 	r.GET("/sayHelloHttp", func(c *gin.Context) {
-		val, err := rdb.Incr(c, "helloHttpCounter").Result()
-		zlog.Info("test hello http", zap.Int64("val", val), zap.Error(err))
+		ctx := c.Request.Context()
+		val, err := rdb.Incr(ctx, "helloHttpCounter").Result()
+		if err != nil {
+			zlog.ErrorContext(ctx, "test hello http", zap.Int64("val", val), zap.Error(err))
+		} else {
+			zlog.InfoContext(ctx, "test hello http", zap.Int64("val", val))
+		}
+
 		//req, err := http.NewRequest("GET", "http://localhost:18001/sayHello", nil)
 		//resp, err := http.DefaultClient.Do(req)
 		//dealErr(err)
