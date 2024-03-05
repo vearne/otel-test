@@ -1,4 +1,4 @@
-COMMAND_NAME = sw-sayhello-http
+COMMAND_NAME = otel-sayhello-http
 
 .PHONY: clean
 clean:

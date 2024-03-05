@@ -1,4 +1,4 @@
-COMMAND_NAME = sw-sayhello-grpc
+COMMAND_NAME = otel-sayhello-grpc
 
 .PHONY: clean
 clean:
