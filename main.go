@@ -164,7 +164,7 @@ func main() {
 			member, _ := baggage.NewMember("mykey", "myvalue")
 			reqBaggage, _ = reqBaggage.SetMember(member)
 		}
-
+		// 你可以使用Baggage传输额外的信息
 		ctx = baggage.ContextWithBaggage(ctx, reqBaggage)
 		// Contact the server and print out its response.
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
