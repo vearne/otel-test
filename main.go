@@ -138,7 +138,7 @@ func main() {
 	r.GET("/sayHelloGrpc", func(c *gin.Context) {
 		ctx := c.Request.Context()
 
-		val, err := rdb.Incr(c.Request.Context(), "helloGrpcCounter").Result()
+		val, err := rdb.Incr(ctx, "helloGrpcCounter").Result()
 		if err != nil {
 			zlog.ErrorContext(ctx, "test hello grpc", zap.Int64("val", val), zap.Error(err))
 		} else {
