@@ -19,6 +19,7 @@ import (
 	zlog "github.com/vearne/otel-test/log"
 	"github.com/vearne/otel-test/myotel"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -190,8 +191,11 @@ func getUser(c *gin.Context, id string) string {
 	tracer := otel.Tracer("otel-test")
 	_, span := tracer.Start(c.Request.Context(), "getUser", oteltrace.WithAttributes(attribute.String("id", id)))
 	defer span.End()
+	span.AddEvent("start to get user", oteltrace.WithTimestamp(time.Now()))
 	if id == "123" {
+		span.SetStatus(codes.Ok, "ok")
 		return "otelgin tester"
 	}
+	span.SetStatus(codes.Error, "unknown user")
 	return "unknown"
 }
