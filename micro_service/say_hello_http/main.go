@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	_ "github.com/apache/skywalking-go"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"

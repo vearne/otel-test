@@ -132,4 +132,10 @@ services:
     ports:
       - "9200:9200"
     logging: *logging
+    
+  redis-stack:
+    image: "redis/redis-stack:7.2.0-v4"
+    ports:
+      - "6379:6379"
+    container_name: redis
 

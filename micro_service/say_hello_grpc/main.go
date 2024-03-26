@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	_ "github.com/apache/skywalking-go"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
