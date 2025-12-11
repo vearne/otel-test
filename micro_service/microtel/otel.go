@@ -1,4 +1,4 @@
-package myotel
+package microtel
 
 import (
 	"context"
@@ -27,7 +27,7 @@ func InitTracerProvider() *sdktrace.TracerProvider {
 		log.Fatalf("new otlp trace grpc exporter failed: %v", err)
 	}
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(NewHeaderSampler("X-Force-Trace", "1")),
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.NeverSample())),
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(initResource()),
 	)

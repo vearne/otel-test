@@ -2,19 +2,20 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"net"
+	"sync/atomic"
+	"time"
+
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 	zlog "github.com/vearne/otel-test/log"
-	"github.com/vearne/otel-test/myotel"
+	"github.com/vearne/otel-test/micro_service/microtel"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"log"
-	"net"
-	"sync/atomic"
-	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/net/context"
@@ -25,8 +26,8 @@ import (
 )
 
 func init() {
-	myotel.InitTracerProvider()
-	myotel.InitMeterProvider()
+	microtel.InitTracerProvider()
+	microtel.InitMeterProvider()
 	err := runtime.Start(runtime.WithMinimumReadMemStatsInterval(time.Second))
 	if err != nil {
 		log.Fatal(err)

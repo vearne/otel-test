@@ -16,6 +16,11 @@ package main
 
 import (
 	"context"
+	"html/template"
+	"log"
+	"net/http"
+	"time"
+
 	zlog "github.com/vearne/otel-test/log"
 	"github.com/vearne/otel-test/myotel"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -24,10 +29,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	pb "google.golang.org/grpc/examples/helloworld/helloworld"
-	"html/template"
-	"log"
-	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -73,7 +74,9 @@ func main() {
 	}
 
 	r := gin.New()
-	r.Use(otelgin.Middleware("my-server"))
+	r.Use(headerToCtxMiddleware("X-Force-Trace")) // ① 把 header 塞进 ctx
+	r.Use(otelgin.Middleware("my-server"))        // ② 官方 otel-gin 中间件
+
 	tmplName := "user"
 	tmplStr := "user {{ .name }} (id {{ .id }})\n"
 	tmpl := template.Must(template.New(tmplName).Parse(tmplStr))
@@ -194,4 +197,14 @@ func getUser(c *gin.Context, id string) string {
 		return "otelgin tester"
 	}
 	return "unknown"
+}
+
+func headerToCtxMiddleware(headerKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		v := c.GetHeader(headerKey)
+		// 写进 context，sampler 里能取到
+		ctx := context.WithValue(c.Request.Context(), "http.header."+headerKey, v)
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	}
 }
